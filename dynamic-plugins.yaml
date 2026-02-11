@@ -1,0 +1,6 @@
+plugins:
+  # Enable Keycloak catalog provider
+  - package: ./dynamic-plugins/dist/backstage-community-plugin-catalog-backend-module-keycloak-dynamic
+    disabled: false
+
+  # All other dynamic plugins are intentionally removed for now

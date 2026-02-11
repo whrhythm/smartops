@@ -1,0 +1,13 @@
+{
+  "env": "prod",
+  "defaultTenant": "default",
+  "tenants": {
+    "default": {
+      "name": "Default",
+      "appUrl": "https://prod.example.com"
+    }
+  },
+  "keycloak": {
+    "tenantClaim": "tenantId"
+  }
+}

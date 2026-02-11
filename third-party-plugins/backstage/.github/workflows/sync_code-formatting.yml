@@ -1,0 +1,40 @@
+name: Sync code formatting
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  autofix-markdown:
+    name: Autofix Markdown files using Prettier
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@df199fb7be9f65074067a9eb93f12bb4c5547cf2 # v2.13.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Fetch changes to previous commit - required for 'only_changed' in Prettier action
+          fetch-depth: 0
+
+      - name: use node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          registry-url: https://registry.npmjs.org/ # Needed for auth
+      - name: yarn install
+        uses: backstage/actions/yarn-install@d98113056c83b1b0a1293c8310d77d99db4ea22e # v0.7.3
+        with:
+          cache-prefix: ${{ runner.os }}-v${{ matrix.node-version }}
+
+      - name: Run Prettier on ADOPTERS.md
+        uses: creyD/prettier_action@8c18391fdc98ed0d884c6345f03975edac71b8f0 # v4.6
+        with:
+          # Modifies commit only if prettier autofixed the ADOPTERS.md
+          prettier_options: --config docs/prettier.config.js --write ADOPTERS.md
+          only_changed: true
+          commit_message: 'Autofix ADOPTERS.md using Prettier'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

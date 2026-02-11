@@ -1,0 +1,149 @@
+app:
+  title: SmartOps
+  baseUrl: http://localhost:7007
+organization:
+  name: My Org
+aiAssistant:
+  unauthorizedReply: 抱歉，你暂未开通权限，请联系管理员申请访问。
+  llm:
+    provider: ${AI_LLM_PROVIDER:openai-compatible}
+    baseUrl: ${AI_LLM_BASE_URL:https://api.openai.com/v1}
+    apiKey: ${AI_LLM_API_KEY:}
+    model: ${AI_LLM_MODEL:gpt-4o-mini}
+  rag:
+    tenantFilterKey: ${AI_RAG_TENANT_FILTER_KEY:tenantId}
+    maxResults: ${AI_RAG_MAX_RESULTS:3}
+  wecom:
+    corpId: ${WECOM_CORP_ID}
+    agentId: ${WECOM_AGENT_ID}
+    secret: ${WECOM_SECRET}
+  flowable:
+    baseUrl: ${FLOWABLE_BASE_URL}
+    username: ${FLOWABLE_USERNAME}
+    password: ${FLOWABLE_PASSWORD}
+    processKey: ${FLOWABLE_PROCESS_KEY}
+  users:
+    - phone: ${AI_USER_PHONE}
+      tenantId: ${AI_TENANT_ID}
+      userRef: ${AI_USER_REF}
+      wecomUserId: ${AI_WECOM_USER_ID}
+  mcpServers:
+    - name: k8s
+      domain: k8s
+      baseUrl: ${MCP_K8S_URL}
+    - name: vm
+      domain: vm
+      baseUrl: ${MCP_VM_URL}
+
+smartops:
+  integrations:
+    gitlab:
+      baseUrl: ${SMARTOPS_GITLAB_BASE_URL:}
+      token: ${SMARTOPS_GITLAB_TOKEN:}
+      iacProjectId: ${SMARTOPS_GITLAB_IAC_PROJECT_ID:}
+    argocd:
+      baseUrl: ${SMARTOPS_ARGOCD_BASE_URL:}
+      token: ${SMARTOPS_ARGOCD_TOKEN:}
+    vault:
+      baseUrl: ${SMARTOPS_VAULT_BASE_URL:}
+      token: ${SMARTOPS_VAULT_TOKEN:}
+    kyverno:
+      baseUrl: ${SMARTOPS_KYVERNO_BASE_URL:}
+    trivy:
+      baseUrl: ${SMARTOPS_TRIVY_BASE_URL:}
+    velero:
+      baseUrl: ${SMARTOPS_VELERO_BASE_URL:}
+    openebs:
+      baseUrl: ${SMARTOPS_OPENEBS_BASE_URL:}
+    juicefs:
+      baseUrl: ${SMARTOPS_JUICEFS_BASE_URL:}
+  identityAsCode:
+    repo:
+      defaultBranch: ${SMARTOPS_IAC_DEFAULT_BRANCH:main}
+      filePath: ${SMARTOPS_IAC_FILE_PATH:org/structure}
+  vcluster:
+    provisioner:
+      driver: helm
+      helm:
+        releaseNamespace: ${SMARTOPS_HELM_RELEASE_NAMESPACE:vcluster-system}
+        chartRef: ${SMARTOPS_HELM_CHART_REF:ghcr.io/loft-sh/vcluster-chart}
+        gitOpsProjectId: ${SMARTOPS_HELM_GITOPS_PROJECT_ID:}
+        gitOpsBranch: ${SMARTOPS_HELM_GITOPS_BRANCH:main}
+        gitOpsFilePath: ${SMARTOPS_HELM_GITOPS_FILE_PATH:gitops/vcluster}
+  storage:
+    tiering:
+      hot:
+        backend: nvme-local
+        purpose: kv-cache
+      warm:
+        backend: juicefs
+        multiClusterShared: true
+      cold:
+        backend: s3
+        retentionDays: ${SMARTOPS_STORAGE_COLD_RETENTION_DAYS:90}
+    backup:
+      tool: velero
+      configSchedule: ${SMARTOPS_BACKUP_CONFIG_SCHEDULE:0 2 * * *}
+      dataSchedule: ${SMARTOPS_BACKUP_DATA_SCHEDULE:0 */6 * * *}
+      retentionDays: ${SMARTOPS_BACKUP_RETENTION_DAYS:30}
+  agents:
+    dynamic:
+      - id: network-agent
+        name: Network Agent
+        description: Sample dynamic agent loaded from config
+        version: 0.1.0
+        baseUrl: ${SMARTOPS_NETWORK_AGENT_BASE_URL:}
+        actions:
+          - id: list-policies
+            title: List Policies
+            riskLevel: low
+            method: GET
+            endpoint: /api/v1/policies
+        uiExtensions:
+          - id: network-settings
+            title: Network Agent
+            description: Dynamic network operations panel in Settings
+  events:
+    enabled: ${SMARTOPS_EVENTS_ENABLED:false}
+    mode: ${SMARTOPS_EVENTS_MODE:logger}
+    nats:
+      serverUrl: ${SMARTOPS_NATS_SERVER_URL:nats://localhost:4222}
+      stream: ${SMARTOPS_NATS_STREAM:SMARTOPS}
+      subjectPrefix: ${SMARTOPS_NATS_SUBJECT_PREFIX:}
+
+backend:
+  baseUrl: http://localhost:7007
+  listen:
+    port: 7007
+  csp:
+    connect-src:
+      - "'self'"
+      - 'http:'
+      - 'https:'
+  cors:
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+proxy:
+  skipInvalidProxies: true
+  endpoints: {}
+lighthouse:
+  baseUrl: temp
+dynatrace:
+  baseUrl: temp
+techdocs:
+  builder: external
+auth:
+  environment: development
+catalog:
+  import:
+    entityFilename: catalog-info.yaml
+    pullRequestBranchName: backstage-integration
+  rules:
+    - allow: [Component, System, Group, Resource, Location, Template, API]
+  locations:
+    # Note: integrations.github[].apps must be correctly configured to read GitHub locations
+    - type: file
+      target: ../../catalog-entities/all.yaml

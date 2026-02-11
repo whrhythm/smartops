@@ -1,0 +1,13 @@
+{
+  "env": "staging",
+  "defaultTenant": "default",
+  "tenants": {
+    "default": {
+      "name": "Default",
+      "appUrl": "https://staging.example.com"
+    }
+  },
+  "keycloak": {
+    "tenantClaim": "tenantId"
+  }
+}

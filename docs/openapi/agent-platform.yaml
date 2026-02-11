@@ -1,0 +1,179 @@
+openapi: 3.0.3
+info:
+  title: Agent Platform API
+  version: 0.1.0
+  description: AI-driven agent registry, action execution, approval workflow, and task tracking APIs.
+components:
+  schemas:
+    AgentExecuteRequest:
+      type: object
+      properties:
+        input:
+          type: object
+          additionalProperties: true
+        context:
+          type: object
+          properties:
+            tenantId:
+              type: string
+            userRef:
+              type: string
+            approval:
+              type: object
+              properties:
+                approved:
+                  type: boolean
+                ticketId:
+                  type: string
+                approver:
+                  type: string
+    ApprovalDecisionRequest:
+      type: object
+      required:
+        - decision
+        - decidedBy
+      properties:
+        decision:
+          type: string
+          enum: [approved, rejected]
+        decidedBy:
+          type: string
+        note:
+          type: string
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service health
+  /agents:
+    get:
+      summary: List registered agents
+      responses:
+        "200":
+          description: Agent definitions
+  /actions/{agentId}/{actionId}/execute:
+    post:
+      summary: Execute an agent action
+      parameters:
+        - in: path
+          name: agentId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: actionId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentExecuteRequest"
+      responses:
+        "200":
+          description: Action executed successfully
+        "202":
+          description: Approval required for high-risk action
+        "400":
+          description: Action execution failed
+        "404":
+          description: Agent or action not found
+  /tasks:
+    get:
+      summary: List tasks
+      parameters:
+        - in: query
+          name: tenantId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Task list
+  /tasks/{taskId}:
+    get:
+      summary: Get task by id
+      parameters:
+        - in: path
+          name: taskId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Task details
+        "404":
+          description: Task not found
+  /approvals:
+    get:
+      summary: List approval tickets
+      parameters:
+        - in: query
+          name: tenantId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, expired]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Approval ticket list
+  /approvals/{ticketId}:
+    get:
+      summary: Get approval ticket by id
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Approval ticket details
+        "404":
+          description: Ticket not found
+  /approvals/{ticketId}/decision:
+    post:
+      summary: Approve or reject a ticket and resume execution
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalDecisionRequest"
+      responses:
+        "200":
+          description: Decision persisted and execution handled
+        "400":
+          description: Invalid decision or execution failure
+        "404":
+          description: Ticket not found
+        "500":
+          description: Decision persistence failed

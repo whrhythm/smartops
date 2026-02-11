@@ -1,0 +1,13 @@
+{
+  "env": "dev",
+  "defaultTenant": "default",
+  "tenants": {
+    "default": {
+      "name": "Default",
+      "appUrl": "http://localhost:3000"
+    }
+  },
+  "keycloak": {
+    "tenantClaim": "tenantId"
+  }
+}

@@ -1,0 +1,90 @@
+openapi: 3.0.3
+info:
+  title: AI Assistant Orchestrator API
+  version: 0.1.0
+  description: LLM-driven agent orchestration endpoints including chat execution and WeCom event handling.
+components:
+  schemas:
+    AiChatRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        tenantId:
+          type: string
+        userRef:
+          type: string
+        autoExecute:
+          type: boolean
+    WeComMessageRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        phone:
+          type: string
+        channelUserId:
+          type: string
+paths:
+  /ai-assistant/health:
+    get:
+      summary: Health check and LLM config status
+      responses:
+        "200":
+          description: Assistant health
+  /ai-assistant/providers/health:
+    get:
+      summary: Check configured LLM provider connectivity and latency
+      responses:
+        "200":
+          description: Provider health result
+        "503":
+          description: LLM not configured
+  /ai-assistant/chat:
+    post:
+      summary: Chat with assistant and optionally auto-execute selected action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatRequest"
+      responses:
+        "200":
+          description: Assistant response and optional execution result
+        "400":
+          description: Missing text or invalid request
+        "503":
+          description: LLM not configured
+  /ai-assistant/chat/stream:
+    post:
+      summary: Stream assistant response chunks in NDJSON format
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatRequest"
+      responses:
+        "200":
+          description: Stream started
+        "400":
+          description: Missing text or invalid request
+        "503":
+          description: LLM not configured
+  /ai-assistant/wecom/messages:
+    post:
+      summary: Handle WeCom inbound assistant events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeComMessageRequest"
+      responses:
+        "200":
+          description: Event handled
+        "400":
+          description: Missing text

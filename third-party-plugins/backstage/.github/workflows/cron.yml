@@ -1,0 +1,21 @@
+name: Cron
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@df199fb7be9f65074067a9eb93f12bb4c5547cf2 # v2.13.3
+        with:
+          egress-policy: audit
+
+      - uses: backstage/actions/cron@d98113056c83b1b0a1293c8310d77d99db4ea22e # v0.7.3
+        with:
+          app-id: ${{ secrets.BACKSTAGE_GOALIE_APPLICATION_ID }}
+          private-key: ${{ secrets.BACKSTAGE_GOALIE_PRIVATE_KEY }}
+          installation-id: ${{ secrets.BACKSTAGE_GOALIE_INSTALLATION_ID }}
