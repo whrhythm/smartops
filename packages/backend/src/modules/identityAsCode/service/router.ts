@@ -8,7 +8,7 @@ import { withRouteSpan } from '../../observability/httpTracing';
 import { createProvisioner } from './provisioners';
 import { VClusterProvisionRequest } from './provisioners/types';
 import { upsertGitlabFile } from './gitlab';
-import { renderSwaggerUi } from '../../openapi/swaggerUi';
+import { renderSwaggerUi, renderSwaggerUiInitScript } from '../../openapi/swaggerUi';
 
 type RouterOptions = {
   logger: LoggerService;
@@ -157,6 +157,10 @@ export const createRouter = async ({ logger, config }: RouterOptions) => {
 
   router.get('/docs', (_, res) => {
     res.type('html').send(renderSwaggerUi('Identity-as-Code API Docs', './openapi.json'));
+  });
+
+  router.get('/swagger-ui-init.js', (_, res) => {
+    res.type('application/javascript').send(renderSwaggerUiInitScript());
   });
 
   const iaConfig = readIdentityAsCodeConfig(config);

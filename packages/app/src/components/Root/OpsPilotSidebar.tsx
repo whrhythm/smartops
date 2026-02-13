@@ -158,7 +158,7 @@ const OpsPilotSidebar = ({
             </ListItemButton>
           </Tooltip>
           <Tooltip title="Kubernetes" placement="right">
-            <ListItemButton component={Link} to="/?view=k8s" aria-label="Kubernetes">
+            <ListItemButton component={Link} to="/kubernetes" aria-label="Kubernetes">
               <ListItemIcon>{renderIcon('kubernetes')}</ListItemIcon>
             </ListItemButton>
           </Tooltip>

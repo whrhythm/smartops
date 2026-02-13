@@ -7,7 +7,7 @@
   },
   "scripts": {
     "prepare": "husky install",
-    "start": "NODE_OPTIONS=--no-node-snapshot turbo run start --filter=backend",
+    "start": "dotenv -e .env -- cross-env TURBO_ENV_MODE=loose NODE_OPTIONS=--no-node-snapshot turbo run start --filter=backend",
     "dev": "dotenv -e .env -- cross-env TURBO_ENV_MODE=loose NODE_OPTIONS=--no-node-snapshot turbo run start --filter=backend --filter=app",
     "build": "turbo run build",
     "build:dockerfile": "bash ./scripts/update-Dockerfile.sh",
@@ -17,6 +17,9 @@
     "copy-dynamic-plugins": "echo \"Command moved to dynamic-plugins/package.json\"",
     "clean": "turbo run clean",
     "test": "turbo run test",
+    "test:backend": "yarn test --filter=backend",
+    "test:backend:ai": "yarn test --filter=backend -- --runTestsByPath src/modules/aiOrchestrator/service/providers/__tests__/volcengineProviders.test.ts",
+    "test:backend:ai:integration": "dotenv -e .env -- cross-env RUN_AI_INTEGRATION_TESTS=true yarn workspace backend test:ai:integration",
     "lint:check": "turbo run lint:check",
     "lint:fix": "turbo run lint:fix",
     "lint": "turbo run lint",
@@ -33,10 +36,10 @@
     "rulesync:import:cursor": "rulesync import --targets cursor",
     "rulesync:import:claude": "rulesync import --targets claudecode",
     "desktop:build": "yarn workspace @smartops/desktop build",
-    "desktop:start": "yarn workspace @smartops/desktop start",
+    "desktop:start": "yarn workspace @smartops/desktop dev",
     "desktop:dev": "yarn workspace @smartops/desktop dev",
-    "desktop:pack": "yarn workspace @smartops/desktop pack",
-    "desktop:dist": "yarn workspace @smartops/desktop dist"
+    "desktop:pack": "yarn workspace @smartops/desktop build",
+    "desktop:dist": "yarn workspace @smartops/desktop build"
   },
   "workspaces": {
     "packages": [

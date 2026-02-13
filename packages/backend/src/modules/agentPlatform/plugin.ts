@@ -22,6 +22,19 @@ export const agentPlatformBackend = createBackendPlugin({
         const eventPublisher = createEventPublisher(config, logger);
         const taskStore = await createTaskStore(database, logger);
 
+        http.addAuthPolicy({
+          path: '/openapi.json',
+          allow: 'unauthenticated',
+        });
+        http.addAuthPolicy({
+          path: '/docs',
+          allow: 'unauthenticated',
+        });
+        http.addAuthPolicy({
+          path: '/swagger-ui-init.js',
+          allow: 'unauthenticated',
+        });
+
         http.use(
           await createRouter({
             logger,

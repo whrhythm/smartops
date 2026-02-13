@@ -14,4 +14,8 @@ export type ProviderClientOptions = {
   baseUrl: string;
   apiKey: string;
   model: string;
+  secretKey?: string;
+  apiMode?: 'chat-completions' | 'responses';
+  webSearchEnabled?: boolean;
+  webSearchMaxKeyword?: number;
 };

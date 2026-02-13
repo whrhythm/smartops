@@ -1,0 +1,26 @@
+version: 1
+defaults:
+  profile: responder
+
+profiles:
+  responder:
+    provider: volcengine
+    model: doubao-seed-1-8-251228
+    apiMode: chat-completions
+
+  planner:
+    provider: volcengine
+    model: doubao-seed-1-8-251228
+    apiMode: chat-completions
+
+  checker:
+    provider: volcengine
+    model: doubao-seed-1-8-251228
+    apiMode: chat-completions
+
+routing:
+  health_check: checker
+  action_plan: planner
+  assistant_reply: responder
+  agent_intent: planner
+  agent_execution_reply: responder

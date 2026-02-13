@@ -2,14 +2,18 @@ import { LoggerService } from '@backstage/backend-plugin-api';
 
 import { AiActionPlan } from './types';
 
-import { LlmConfig } from './config';
+import { AiAssistantConfig } from './config';
 import { AgentDefinition, AgentRiskLevel } from '../../agentPlatform';
 import { createLlmProviderAdapter, LlmProviderAdapter } from './providers';
+import { loadPromptCatalog, PromptCatalog, PromptTaskType } from './promptCatalog';
+import { loadModelProfiles, ResolvedModelProfile } from './modelProfiles';
 
 export type LlmClient = {
-  provider: string;
-  model: string;
-  adapter: LlmProviderAdapter;
+  logger: LoggerService;
+  prompts: PromptCatalog;
+  profiles: Record<string, ResolvedModelProfile>;
+  routing: Record<PromptTaskType, string>;
+  adapterCache: Map<string, LlmProviderAdapter>;
 };
 
 export type LlmProviderHealth = {
@@ -22,33 +26,92 @@ export type LlmProviderHealth = {
 };
 
 export const loadLlmClient = (
-  llm: LlmConfig | undefined,
+  aiConfig: AiAssistantConfig,
   logger: LoggerService,
 ): LlmClient | null => {
+  const llm = aiConfig.llm;
   if (!llm) {
     logger.warn('aiAssistant.llm is not configured');
     return null;
   }
 
-  logger.info(
-    `AI LLM configured: provider=${llm.provider}, baseUrl=${llm.baseUrl}, model=${llm.model}`,
-  );
+  const prompts = loadPromptCatalog(aiConfig.promptCatalogPath, logger);
+  const modelProfiles = loadModelProfiles(aiConfig.modelProfilesPath, llm, logger);
+  const healthProfile =
+    modelProfiles.profiles[modelProfiles.routing.health_check] ??
+    Object.values(modelProfiles.profiles)[0];
 
-  const adapter = createLlmProviderAdapter(
-    {
-      provider: llm.provider,
-      baseUrl: llm.baseUrl,
-      apiKey: llm.apiKey,
-      model: llm.model,
-    },
-    logger,
+  logger.info(
+    `AI LLM configured: provider=${healthProfile.provider}, baseUrl=${healthProfile.baseUrl}, model=${healthProfile.model}`,
   );
 
   return {
-    provider: llm.provider,
-    model: llm.model,
+    logger,
+    prompts,
+    profiles: modelProfiles.profiles,
+    routing: modelProfiles.routing,
+    adapterCache: new Map<string, LlmProviderAdapter>(),
+  };
+};
+
+const resolveProfileForTask = (
+  client: LlmClient,
+  task: PromptTaskType,
+): ResolvedModelProfile => {
+  const profileId = client.routing[task];
+  return client.profiles[profileId] ?? client.profiles.default;
+};
+
+const getAdapterForTask = (
+  client: LlmClient,
+  task: PromptTaskType,
+) => {
+  const profile = resolveProfileForTask(client, task);
+  const cacheKey = profile.id;
+
+  const cached = client.adapterCache.get(cacheKey);
+  if (cached) {
+    return {
+      profile,
+      adapter: cached,
+    };
+  }
+
+  const adapter = createLlmProviderAdapter(
+    {
+      provider: profile.provider,
+      baseUrl: profile.baseUrl,
+      apiKey: profile.apiKey,
+      model: profile.model,
+      secretKey: profile.secretKey,
+      apiMode: profile.apiMode,
+      webSearchEnabled: profile.webSearchEnabled,
+      webSearchMaxKeyword: profile.webSearchMaxKeyword,
+    },
+    client.logger,
+  );
+
+  client.adapterCache.set(cacheKey, adapter);
+  return {
+    profile,
     adapter,
   };
+};
+
+const generateTextWithTask = async (
+  client: LlmClient,
+  options: {
+    task: PromptTaskType;
+    prompt: string;
+    temperature?: number;
+  },
+) => {
+  const { adapter } = getAdapterForTask(client, options.task);
+  return adapter.generateText({
+    system: client.prompts[options.task],
+    prompt: options.prompt,
+    temperature: options.temperature,
+  });
 };
 
 export const checkLlmProviderHealth = async (
@@ -56,25 +119,26 @@ export const checkLlmProviderHealth = async (
 ): Promise<LlmProviderHealth> => {
   const startedAt = Date.now();
   try {
-    const text = await client.adapter.generateText({
-      system:
-        'You are a health check responder. Reply with exactly: OK. Do not add extra words.',
+    const { profile } = getAdapterForTask(client, 'health_check');
+    const text = await generateTextWithTask(client, {
+      task: 'health_check',
       prompt: 'Health check',
       temperature: 0,
     });
 
     return {
       ok: true,
-      provider: client.provider,
-      model: client.model,
+      provider: profile.provider,
+      model: profile.model,
       latencyMs: Date.now() - startedAt,
       outputPreview: text.slice(0, 64),
     };
   } catch (error) {
+    const { profile } = getAdapterForTask(client, 'health_check');
     return {
       ok: false,
-      provider: client.provider,
-      model: client.model,
+      provider: profile.provider,
+      model: profile.model,
       latencyMs: Date.now() - startedAt,
       error: (error as Error).message,
     };
@@ -87,12 +151,14 @@ export const inferActionPlanFromLlm = async (
   logger: LoggerService,
 ): Promise<AiActionPlan | null> => {
   try {
-    const text = await client.adapter.generateText({
-      system:
-        'You are an ops assistant. Return only JSON with keys: domain (k8s|vm|unknown), requiresApproval (boolean), reason (string). Set requiresApproval=true for scaling, deletion, or production changes.',
-      prompt: input,
-      temperature: 0.1,
-    });
+    const text = await generateTextWithTask(
+      client,
+      {
+        task: 'action_plan',
+        prompt: input,
+        temperature: 0.1,
+      },
+    );
 
     if (!text) {
       return null;
@@ -131,9 +197,6 @@ export const generateAssistantReply = async (
   plan: AiActionPlan,
   executionResult?: unknown,
 ) => {
-  const system =
-    'You are an ops assistant. Reply in concise Chinese. Use the provided context when relevant. If approval is required, explain that approval is needed. If executionResult exists, summarize it.';
-
   const promptParts = [
     `User: ${input}`,
     `Plan: domain=${plan.domain}, requiresApproval=${plan.requiresApproval}, reason=${plan.reason}`,
@@ -147,8 +210,8 @@ export const generateAssistantReply = async (
     promptParts.push(`ExecutionResult: ${JSON.stringify(executionResult)}`);
   }
 
-  const text = await client.adapter.generateText({
-    system,
+  const text = await generateTextWithTask(client, {
+    task: 'assistant_reply',
     prompt: promptParts.join('\n\n'),
     temperature: 0.2,
   });
@@ -252,12 +315,14 @@ export const inferAgentExecutionIntent = async (
       .map(item => JSON.stringify(item))
       .join('\n');
 
-    const raw = await client.adapter.generateText({
-      temperature: 0,
-      system:
-        'You are a strict orchestration planner. Return only JSON with keys: agentId, actionId, reason, input. Select only from provided actions. If no action should be executed, return {"agentId":"","actionId":"","reason":"no-op","input":{}}.',
-      prompt: `User request:\n${input}\n\nAvailable actions:\n${availableActions}`,
-    });
+    const raw = await generateTextWithTask(
+      client,
+      {
+        task: 'agent_intent',
+        prompt: `User request:\n${input}\n\nAvailable actions:\n${availableActions}`,
+        temperature: 0,
+      },
+    );
 
     if (!raw) {
       return fallbackIntent(input, agents);
@@ -295,9 +360,8 @@ export const generateAgentExecutionReply = async (
     availableAgents: AgentDefinition[];
   },
 ) => {
-  const text = await client.adapter.generateText({
-    system:
-      'You are an enterprise SmartOps assistant. Reply in concise Chinese. If no action is chosen, propose one next best step. If approval is needed, clearly ask for approval.',
+  const text = await generateTextWithTask(client, {
+    task: 'agent_execution_reply',
     prompt: [
       `User input: ${options.userInput}`,
       `Intent: ${JSON.stringify(options.intent ?? null)}`,

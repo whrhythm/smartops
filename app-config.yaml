@@ -22,71 +22,104 @@ organization:
 
 aiAssistant:
   unauthorizedReply: 抱歉，你暂未开通权限，请联系管理员申请访问。
+  promptCatalogPath: ${AI_PROMPT_CATALOG_PATH:-config/ai-assistant/prompts.yaml}
+  modelProfilesPath: ${AI_MODEL_PROFILES_PATH:-config/ai-assistant/model-profiles.yaml}
   llm:
-    provider: ${AI_LLM_PROVIDER:openai-compatible}
-    baseUrl: ${AI_LLM_BASE_URL:https://api.openai.com/v1}
-    apiKey: ${AI_LLM_API_KEY:}
-    model: ${AI_LLM_MODEL:gpt-4o-mini}
+    provider: ${AI_LLM_PROVIDER:-openai-compatible}
+    baseUrl: ${AI_LLM_BASE_URL:-https://api.openai.com/v1}
+    apiKey: ${AI_LLM_API_KEY:-}
+    model: ${AI_LLM_MODEL:-gpt-4o-mini}
+    secretKey: ${AI_LLM_SECRET_KEY:-}
+    apiMode: ${AI_LLM_API_MODE:-chat-completions}
+    webSearchEnabled: ${AI_LLM_WEB_SEARCH_ENABLED:-false}
+    webSearchMaxKeyword: ${AI_LLM_WEB_SEARCH_MAX_KEYWORD:-3}
   rag:
-    tenantFilterKey: ${AI_RAG_TENANT_FILTER_KEY:tenantId}
-    maxResults: ${AI_RAG_MAX_RESULTS:3}
+    tenantFilterKey: ${AI_RAG_TENANT_FILTER_KEY:-tenantId}
+    maxResults: ${AI_RAG_MAX_RESULTS:-3}
   wecom:
-    corpId: ${WECOM_CORP_ID}
-    agentId: ${WECOM_AGENT_ID}
-    secret: ${WECOM_SECRET}
+    corpId: ${WECOM_CORP_ID:-}
+    agentId: ${WECOM_AGENT_ID:-}
+    secret: ${WECOM_SECRET:-}
   flowable:
-    baseUrl: ${FLOWABLE_BASE_URL}
-    username: ${FLOWABLE_USERNAME}
-    password: ${FLOWABLE_PASSWORD}
-    processKey: ${FLOWABLE_PROCESS_KEY}
+    baseUrl: ${FLOWABLE_BASE_URL:-}
+    username: ${FLOWABLE_USERNAME:-}
+    password: ${FLOWABLE_PASSWORD:-}
+    processKey: ${FLOWABLE_PROCESS_KEY:-}
   users:
-    - phone: ${AI_USER_PHONE}
-      tenantId: ${AI_TENANT_ID}
-      userRef: ${AI_USER_REF}
-      wecomUserId: ${AI_WECOM_USER_ID}
+    - phone: ${AI_USER_PHONE:-dev-phone}
+      tenantId: ${AI_TENANT_ID:-default-tenant}
+      userRef: ${AI_USER_REF:-user:default/guest}
+      wecomUserId: ${AI_WECOM_USER_ID:-}
   mcpServers:
     - name: k8s
       domain: k8s
-      baseUrl: ${MCP_K8S_URL}
+      baseUrl: ${MCP_K8S_URL:-http://127.0.0.1:18081}
     - name: vm
       domain: vm
-      baseUrl: ${MCP_VM_URL}
+      baseUrl: ${MCP_VM_URL:-http://127.0.0.1:18082}
+
+kubernetes:
+  serviceLocatorMethod:
+    type: multiTenant
+  clusterLocatorMethods:
+    - type: config
+      clusters:
+        - name: ${K8S_CLUSTER_NAME:-tenant-vcluster}
+          title: ${K8S_CLUSTER_TITLE:-Tenant vCluster}
+          url: ${K8S_CLUSTER_URL:-https://kubernetes.default.svc}
+          authProvider: serviceAccount
+          serviceAccountToken: ${K8S_SERVICE_ACCOUNT_TOKEN:-}
+          skipTLSVerify: ${K8S_SKIP_TLS_VERIFY:-true}
+  customResources: []
+
+kubernetesOps:
+  rancherBaseUrl: ${RANCHER_BASE_URL:-http://rancher.cattle-system.svc}
+  flowable:
+    baseUrl: ${K8S_FLOWABLE_BASE_URL:-}
+    username: ${K8S_FLOWABLE_USERNAME:-}
+    password: ${K8S_FLOWABLE_PASSWORD:-}
+    processKey: ${K8S_FLOWABLE_PROCESS_KEY:-}
+  tenants:
+    - tenantId: ${K8S_TENANT_ID:-default-tenant}
+      clusterName: ${K8S_TENANT_CLUSTER_NAME:-tenant-vcluster}
+      namespace: ${K8S_TENANT_NAMESPACE:-tenant-default}
+      serviceAccountName: ${K8S_TENANT_SERVICE_ACCOUNT:-tenant-default-sa}
 
 smartops:
   integrations:
     gitlab:
-      baseUrl: ${SMARTOPS_GITLAB_BASE_URL:}
-      token: ${SMARTOPS_GITLAB_TOKEN:}
-      iacProjectId: ${SMARTOPS_GITLAB_IAC_PROJECT_ID:}
+      baseUrl: ${SMARTOPS_GITLAB_BASE_URL:-}
+      token: ${SMARTOPS_GITLAB_TOKEN:-}
+      iacProjectId: ${SMARTOPS_GITLAB_IAC_PROJECT_ID:-}
     argocd:
-      baseUrl: ${SMARTOPS_ARGOCD_BASE_URL:}
-      token: ${SMARTOPS_ARGOCD_TOKEN:}
+      baseUrl: ${SMARTOPS_ARGOCD_BASE_URL:-}
+      token: ${SMARTOPS_ARGOCD_TOKEN:-}
     vault:
-      baseUrl: ${SMARTOPS_VAULT_BASE_URL:}
-      token: ${SMARTOPS_VAULT_TOKEN:}
+      baseUrl: ${SMARTOPS_VAULT_BASE_URL:-}
+      token: ${SMARTOPS_VAULT_TOKEN:-}
     kyverno:
-      baseUrl: ${SMARTOPS_KYVERNO_BASE_URL:}
+      baseUrl: ${SMARTOPS_KYVERNO_BASE_URL:-}
     trivy:
-      baseUrl: ${SMARTOPS_TRIVY_BASE_URL:}
+      baseUrl: ${SMARTOPS_TRIVY_BASE_URL:-}
     velero:
-      baseUrl: ${SMARTOPS_VELERO_BASE_URL:}
+      baseUrl: ${SMARTOPS_VELERO_BASE_URL:-}
     openebs:
-      baseUrl: ${SMARTOPS_OPENEBS_BASE_URL:}
+      baseUrl: ${SMARTOPS_OPENEBS_BASE_URL:-}
     juicefs:
-      baseUrl: ${SMARTOPS_JUICEFS_BASE_URL:}
+      baseUrl: ${SMARTOPS_JUICEFS_BASE_URL:-}
   identityAsCode:
     repo:
-      defaultBranch: ${SMARTOPS_IAC_DEFAULT_BRANCH:main}
-      filePath: ${SMARTOPS_IAC_FILE_PATH:org/structure}
+      defaultBranch: ${SMARTOPS_IAC_DEFAULT_BRANCH:-main}
+      filePath: ${SMARTOPS_IAC_FILE_PATH:-org/structure}
   vcluster:
     provisioner:
       driver: helm
       helm:
-        releaseNamespace: ${SMARTOPS_HELM_RELEASE_NAMESPACE:vcluster-system}
-        chartRef: ${SMARTOPS_HELM_CHART_REF:ghcr.io/loft-sh/vcluster-chart}
-        gitOpsProjectId: ${SMARTOPS_HELM_GITOPS_PROJECT_ID:}
-        gitOpsBranch: ${SMARTOPS_HELM_GITOPS_BRANCH:main}
-        gitOpsFilePath: ${SMARTOPS_HELM_GITOPS_FILE_PATH:gitops/vcluster}
+        releaseNamespace: ${SMARTOPS_HELM_RELEASE_NAMESPACE:-vcluster-system}
+        chartRef: ${SMARTOPS_HELM_CHART_REF:-ghcr.io/loft-sh/vcluster-chart}
+        gitOpsProjectId: ${SMARTOPS_HELM_GITOPS_PROJECT_ID:-}
+        gitOpsBranch: ${SMARTOPS_HELM_GITOPS_BRANCH:-main}
+        gitOpsFilePath: ${SMARTOPS_HELM_GITOPS_FILE_PATH:-gitops/vcluster}
   storage:
     tiering:
       hot:
@@ -97,21 +130,21 @@ smartops:
         multiClusterShared: true
       cold:
         backend: s3
-        retentionDays: ${SMARTOPS_STORAGE_COLD_RETENTION_DAYS:90}
+        retentionDays: ${SMARTOPS_STORAGE_COLD_RETENTION_DAYS:-90}
     backup:
       tool: velero
-      configSchedule: ${SMARTOPS_BACKUP_CONFIG_SCHEDULE:0 2 * * *}
-      dataSchedule: ${SMARTOPS_BACKUP_DATA_SCHEDULE:0 */6 * * *}
-      retentionDays: ${SMARTOPS_BACKUP_RETENTION_DAYS:30}
+      configSchedule: ${SMARTOPS_BACKUP_CONFIG_SCHEDULE:-0 2 * * *}
+      dataSchedule: ${SMARTOPS_BACKUP_DATA_SCHEDULE:-0 */6 * * *}
+      retentionDays: ${SMARTOPS_BACKUP_RETENTION_DAYS:-30}
   agents:
     dynamic: []
   events:
-    enabled: ${SMARTOPS_EVENTS_ENABLED:false}
-    mode: ${SMARTOPS_EVENTS_MODE:logger}
+    enabled: ${SMARTOPS_EVENTS_ENABLED:-false}
+    mode: ${SMARTOPS_EVENTS_MODE:-logger}
     nats:
-      serverUrl: ${SMARTOPS_NATS_SERVER_URL:nats://localhost:4222}
-      stream: ${SMARTOPS_NATS_STREAM:SMARTOPS}
-      subjectPrefix: ${SMARTOPS_NATS_SUBJECT_PREFIX:}
+      serverUrl: ${SMARTOPS_NATS_SERVER_URL:-nats://localhost:4222}
+      stream: ${SMARTOPS_NATS_STREAM:-SMARTOPS}
+      subjectPrefix: ${SMARTOPS_NATS_SUBJECT_PREFIX:-}
 
 auth:
   # Use Keycloak via OIDC
@@ -157,6 +190,13 @@ backend:
       - "'self'"
       - 'http:'
       - 'https:'
+    script-src:
+      - "'self'"
+      - "'unsafe-eval'"
+      - 'https://unpkg.com'
+    # Local dev runs on plain HTTP; disable automatic HTTPS upgrades
+    # to avoid browser subresource requests switching to https:// and failing.
+    upgrade-insecure-requests: false
     # Plugin: Jira
     img-src:
       # "'self'" and 'data' are from the backstage default but must be set since img-src is overwritten

@@ -15,6 +15,7 @@
     "lint:check": "backstage-cli package lint",
     "lint:fix": "backstage-cli package lint --fix",
     "test": "backstage-cli package test --passWithNoTests --coverage",
+    "test:ai:integration": "backstage-cli package test -- --runTestsByPath src/modules/aiOrchestrator/service/providers/__tests__/volcengineProviders.integration.test.ts",
     "clean": "backstage-cli package clean",
     "tsc": "tsc",
     "prettier:check": "prettier --ignore-unknown --check .",

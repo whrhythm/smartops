@@ -16,7 +16,7 @@ import { executeMcpAction } from './mcp';
 import { sendWecomText } from './wecom';
 import { AiActionPlan, AiMessageEvent } from './types';
 import { runWithSpan, withRouteSpan } from '../../observability/httpTracing';
-import { renderSwaggerUi } from '../../openapi/swaggerUi';
+import { renderSwaggerUi, renderSwaggerUiInitScript } from '../../openapi/swaggerUi';
 
 type RouterOptions = {
   logger: LoggerService;
@@ -61,54 +61,235 @@ const aiAssistantOpenApiSpec = {
   openapi: '3.0.3',
   info: {
     title: 'AI Assistant Orchestrator API',
-    version: '0.1.0',
+    version: '0.2.0',
     description:
-      'LLM-driven agent orchestration endpoints including chat execution and WeCom event handling.',
+      'SmartOps assistant APIs for health checks, synchronous chat, NDJSON streaming chat, and WeCom inbound message handling.',
   },
+  tags: [
+    { name: 'health', description: 'Service and provider health endpoints' },
+    { name: 'chat', description: 'Assistant chat endpoints' },
+    { name: 'wecom', description: 'WeCom integration endpoints' },
+  ],
   components: {
     schemas: {
+      ErrorResponse: {
+        type: 'object',
+        properties: {
+          error: { type: 'string', example: 'Missing text' },
+        },
+        required: ['error'],
+      },
       AiChatRequest: {
         type: 'object',
         required: ['text'],
         properties: {
-          text: { type: 'string' },
-          tenantId: { type: 'string' },
-          userRef: { type: 'string' },
-          autoExecute: { type: 'boolean' },
+          text: {
+            type: 'string',
+            description: 'User input text sent to the assistant',
+            example: '检查今天生产集群节点状态',
+          },
+          tenantId: {
+            type: 'string',
+            description: 'Optional tenant context (currently reserved)',
+            example: 'tenant-a',
+          },
+          userRef: {
+            type: 'string',
+            description: 'Optional user reference (currently reserved)',
+            example: 'user:default/alice',
+          },
+          autoExecute: {
+            type: 'boolean',
+            description: 'Reserved for future action auto-execution support',
+            example: false,
+          },
         },
+      },
+      ChatResponse: {
+        type: 'object',
+        properties: {
+          reply: {
+            type: 'string',
+            description: 'Assistant generated reply',
+            example: '当前集群运行正常，未发现异常节点。',
+          },
+          selectedAction: {
+            nullable: true,
+            description: 'Reserved field for selected action metadata',
+            oneOf: [{ type: 'object' }, { type: 'null' }],
+          },
+          execution: {
+            nullable: true,
+            description: 'Reserved field for action execution result',
+            oneOf: [{ type: 'object' }, { type: 'null' }],
+          },
+        },
+        required: ['reply', 'selectedAction', 'execution'],
+      },
+      ProviderHealthResponse: {
+        type: 'object',
+        properties: {
+          ok: { type: 'boolean', example: true },
+          provider: { type: 'string', example: 'volcengine' },
+          model: { type: 'string', example: 'doubao-seed-1-8-251228' },
+          latencyMs: { type: 'number', example: 128 },
+          outputPreview: { type: 'string', example: 'OK' },
+          error: {
+            type: 'string',
+            nullable: true,
+            example: 'Provider timeout',
+          },
+        },
+        required: ['ok', 'provider', 'model', 'latencyMs'],
+      },
+      AssistantHealthResponse: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', example: 'ok' },
+          llmConfigured: { type: 'boolean', example: true },
+        },
+        required: ['status', 'llmConfigured'],
       },
       WeComMessageRequest: {
         type: 'object',
         required: ['text'],
         properties: {
-          text: { type: 'string' },
-          phone: { type: 'string' },
-          channelUserId: { type: 'string' },
+          text: {
+            type: 'string',
+            description: 'Inbound user message from WeCom',
+            example: '帮我看下今天的热点告警',
+          },
+          phone: {
+            type: 'string',
+            description: 'Optional user phone for mapping',
+            example: '13800138000',
+          },
+          channelUserId: {
+            type: 'string',
+            description: 'WeCom user id',
+            example: 'zhangsan',
+          },
         },
+      },
+      WeComMessageResponse: {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            description:
+              'Processing status: unauthorized | approval_missing | approval_requested | mcp_missing | executed',
+            example: 'approval_requested',
+          },
+          reply: {
+            type: 'string',
+            nullable: true,
+            description: 'Optional generated reply',
+          },
+        },
+        required: ['status'],
+      },
+      StreamStartEvent: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['start'] },
+        },
+        required: ['type'],
+      },
+      StreamDeltaEvent: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['delta'] },
+          content: { type: 'string', example: '当前集群' },
+        },
+        required: ['type', 'content'],
+      },
+      StreamDoneEvent: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['done'] },
+          reply: {
+            type: 'string',
+            example: '当前集群运行正常，未发现异常节点。',
+          },
+          selectedAction: {
+            nullable: true,
+            oneOf: [{ type: 'object' }, { type: 'null' }],
+          },
+          execution: {
+            nullable: true,
+            oneOf: [{ type: 'object' }, { type: 'null' }],
+          },
+        },
+        required: ['type', 'reply', 'selectedAction', 'execution'],
+      },
+      StreamErrorEvent: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['error'] },
+          error: { type: 'string', example: 'LLM service unavailable' },
+        },
+        required: ['type', 'error'],
       },
     },
   },
   paths: {
     '/ai-assistant/health': {
       get: {
-        summary: 'Health check and LLM config status',
+        tags: ['health'],
+        summary: 'Assistant service health',
+        description: 'Returns basic service health and whether LLM is configured.',
         responses: {
-          '200': { description: 'Assistant health' },
+          '200': {
+            description: 'Assistant health result',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AssistantHealthResponse' },
+              },
+            },
+          },
         },
       },
     },
     '/ai-assistant/providers/health': {
       get: {
-        summary: 'Check configured LLM provider connectivity and latency',
+        tags: ['health'],
+        summary: 'LLM provider health check',
+        description:
+          'Checks upstream model provider connectivity and returns latency/preview.',
         responses: {
-          '200': { description: 'Provider health result' },
-          '503': { description: 'LLM not configured' },
+          '200': {
+            description: 'Provider is healthy',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ProviderHealthResponse' },
+              },
+            },
+          },
+          '502': {
+            description: 'Provider check failed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ProviderHealthResponse' },
+              },
+            },
+          },
+          '503': {
+            description: 'LLM is not configured',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
         },
       },
     },
     '/ai-assistant/chat': {
       post: {
-        summary: 'Chat with assistant and optionally auto-execute selected action',
+        tags: ['chat'],
+        summary: 'Synchronous assistant chat',
+        description:
+          'Returns one complete assistant reply. Current behavior is pure LLM generation without agent execution.',
         requestBody: {
           required: true,
           content: {
@@ -118,15 +299,39 @@ const aiAssistantOpenApiSpec = {
           },
         },
         responses: {
-          '200': { description: 'Assistant response and optional execution result' },
-          '400': { description: 'Missing text or invalid request' },
-          '503': { description: 'LLM not configured' },
+          '200': {
+            description: 'Assistant response',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ChatResponse' },
+              },
+            },
+          },
+          '400': {
+            description: 'Missing text or invalid body',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '503': {
+            description: 'LLM not configured',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
         },
       },
     },
     '/ai-assistant/chat/stream': {
       post: {
-        summary: 'Stream assistant response chunks in NDJSON format',
+        tags: ['chat'],
+        summary: 'Streaming assistant chat (NDJSON)',
+        description:
+          'Streams newline-delimited JSON events. Event sequence is start -> delta* -> done, or start -> error.',
         requestBody: {
           required: true,
           content: {
@@ -136,15 +341,53 @@ const aiAssistantOpenApiSpec = {
           },
         },
         responses: {
-          '200': { description: 'Stream started' },
-          '400': { description: 'Missing text or invalid request' },
-          '503': { description: 'LLM not configured' },
+          '200': {
+            description: 'NDJSON stream',
+            content: {
+              'application/x-ndjson': {
+                schema: {
+                  oneOf: [
+                    { $ref: '#/components/schemas/StreamStartEvent' },
+                    { $ref: '#/components/schemas/StreamDeltaEvent' },
+                    { $ref: '#/components/schemas/StreamDoneEvent' },
+                    { $ref: '#/components/schemas/StreamErrorEvent' },
+                  ],
+                },
+                examples: {
+                  streamSample: {
+                    summary: 'Example NDJSON event sequence',
+                    value:
+                      '{"type":"start"}\n{"type":"delta","content":"当前集群"}\n{"type":"delta","content":"运行正常"}\n{"type":"done","reply":"当前集群运行正常","selectedAction":null,"execution":null}',
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Missing text or invalid body',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '503': {
+            description: 'LLM not configured',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
         },
       },
     },
     '/ai-assistant/wecom/messages': {
       post: {
-        summary: 'Handle WeCom inbound assistant events',
+        tags: ['wecom'],
+        summary: 'Handle WeCom inbound assistant event',
+        description:
+          'Maps WeCom user context, performs planning/execution path, and optionally sends back WeCom reply.',
         requestBody: {
           required: true,
           content: {
@@ -154,8 +397,22 @@ const aiAssistantOpenApiSpec = {
           },
         },
         responses: {
-          '200': { description: 'Event handled' },
-          '400': { description: 'Missing text' },
+          '200': {
+            description: 'Event handled',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/WeComMessageResponse' },
+              },
+            },
+          },
+          '400': {
+            description: 'Missing text',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
         },
       },
     },
@@ -174,8 +431,16 @@ export const createRouter = async ({ logger, config, discovery }: RouterOptions)
     res.type('html').send(renderSwaggerUi('AI Assistant API Docs', './openapi.json'));
   });
 
+  router.get('/doc', (_, res) => {
+    res.type('html').send(renderSwaggerUi('AI Assistant API Docs', './openapi.json'));
+  });
+
+  router.get('/swagger-ui-init.js', (_, res) => {
+    res.type('application/javascript').send(renderSwaggerUiInitScript());
+  });
+
   const aiConfig = readAiAssistantConfig(config);
-  const llmClient = loadLlmClient(aiConfig.llm, logger);
+  const llmClient = loadLlmClient(aiConfig, logger);
 
   router.get('/ai-assistant/health', withRouteSpan('ai-assistant.health', (_, res) => {
     res.json({

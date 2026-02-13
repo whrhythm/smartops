@@ -1,9 +1,10 @@
 import { coreServices, createBackendPlugin } from '@backstage/backend-plugin-api';
 
-import { createRouter } from './service/router';
+import { readKubernetesOpsConfig } from './config';
+import { createRouter } from './router';
 
-export const identityAsCodeBackend = createBackendPlugin({
-  pluginId: 'identity-as-code',
+export const kubernetesOpsBackend = createBackendPlugin({
+  pluginId: 'kubernetes-ops',
   register(env) {
     env.registerInit({
       deps: {
@@ -12,14 +13,8 @@ export const identityAsCodeBackend = createBackendPlugin({
         config: coreServices.rootConfig,
       },
       async init({ http, logger, config }) {
-        http.addAuthPolicy({
-          path: '/openapi.json',
-          allow: 'unauthenticated',
-        });
-        http.addAuthPolicy({
-          path: '/docs',
-          allow: 'unauthenticated',
-        });
+        http.addAuthPolicy({ path: '/openapi.json', allow: 'unauthenticated' });
+        http.addAuthPolicy({ path: '/docs', allow: 'unauthenticated' });
         http.addAuthPolicy({
           path: '/swagger-ui-init.js',
           allow: 'unauthenticated',
@@ -28,7 +23,7 @@ export const identityAsCodeBackend = createBackendPlugin({
         http.use(
           await createRouter({
             logger,
-            config,
+            config: readKubernetesOpsConfig(config),
           }),
         );
       },

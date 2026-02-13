@@ -2,49 +2,25 @@
   "name": "@smartops/desktop",
   "version": "0.1.0",
   "private": true,
-  "main": "dist/main.js",
+  "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "start": "electron dist/main.js",
-    "dev": "tsc -p tsconfig.json --watch",
-    "pack": "yarn build && electron-builder --dir",
-    "dist": "yarn build && electron-builder"
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "start": "tauri dev"
   },
   "dependencies": {
-    "auto-launch": "5.0.6"
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-autostart": "^2",
+    "@tauri-apps/plugin-clipboard-manager": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-notification": "^2",
+    "@tauri-apps/plugin-shell": "^2",
+    "@tauri-apps/plugin-store": "^2"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2",
     "@types/node": "22.13.4",
-    "electron": "30.1.2",
-    "electron-builder": "24.13.3",
     "typescript": "5.7.3"
-  },
-  "build": {
-    "appId": "com.smartops.desktop",
-    "productName": "SmartOps",
-    "artifactName": "${productName}-${version}.${ext}",
-    "files": [
-      "dist/**/*",
-      "config/**/*",
-      "package.json"
-    ],
-    "directories": {
-      "output": "dist-builder"
-    },
-    "mac": {
-      "target": [
-        "dmg"
-      ]
-    },
-    "win": {
-      "target": [
-        "nsis"
-      ]
-    },
-    "linux": {
-      "target": [
-        "AppImage"
-      ]
-    }
   }
 }

@@ -20,6 +20,7 @@ import {
   healthCheckPlugin,
   identityAsCodeBackend,
   kubernetesAgentBackend,
+  kubernetesOpsBackend,
   pluginIDProviderService,
   rbacDynamicPluginsProvider,
   securityControlAgentBackend,
@@ -175,6 +176,7 @@ backend.add(import('@internal/plugin-licensed-users-info-backend'));
 backend.add(aiOrchestratorBackend);
 backend.add(agentPlatformBackend);
 backend.add(kubernetesAgentBackend);
+backend.add(kubernetesOpsBackend);
 backend.add(cicdAgentBackend);
 backend.add(dataSecurityAgentBackend);
 backend.add(securityControlAgentBackend);

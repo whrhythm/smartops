@@ -9,7 +9,7 @@ import { AgentEventTopics } from './events/topics';
 import { runWithSpan, withRouteSpan } from '../observability/httpTracing';
 import { TaskStore } from './taskStore';
 import { approvalDecisionInputSchema } from './contracts/approvalContract';
-import { renderSwaggerUi } from '../openapi/swaggerUi';
+import { renderSwaggerUi, renderSwaggerUiInitScript } from '../openapi/swaggerUi';
 
 const parseTaskStatus = (value?: string) => {
   const allowed = [
@@ -283,6 +283,10 @@ export const createRouter = async ({ logger, eventPublisher, taskStore }: Router
 
   router.get('/docs', (_, res) => {
     res.type('html').send(renderSwaggerUi('Agent Platform API Docs', './openapi.json'));
+  });
+
+  router.get('/swagger-ui-init.js', (_, res) => {
+    res.type('application/javascript').send(renderSwaggerUiInitScript());
   });
 
   router.get('/health', withRouteSpan('agent-platform.health', (_, res) => {

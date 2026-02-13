@@ -23,7 +23,10 @@ import {
   WarningAmber,
 } from '@mui/icons-material';
 
-import { smartOpsAssistantApiRef } from '../../api/SmartOpsAssistantApiClient';
+import {
+  AssistantChatResponse,
+  smartOpsAssistantApiRef,
+} from '../../api/SmartOpsAssistantApiClient';
 
 import { getOpsPilotStyles } from './OpsPilotHome.styles';
 
@@ -496,6 +499,75 @@ const OpsPilotHome = () => {
     setMessages(prev => [...prev, aiResponse]);
 
     void (async () => {
+      let pendingChunks = '';
+      let streamEnded = false;
+      let receivedDelta = false;
+      let donePayload: AssistantChatResponse | undefined;
+
+      const appendStreamText = (chunk: string) => {
+        if (!chunk) {
+          return;
+        }
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === aiMessageId ? { ...msg, text: msg.text + chunk } : msg,
+          ),
+        );
+      };
+
+      const applyDonePayload = (chatResult: AssistantChatResponse) => {
+        setMessages(prev =>
+          prev.map(msg => {
+            if (msg.id !== aiMessageId) {
+              return msg;
+            }
+
+            const updated: Message = {
+              ...msg,
+              text: chatResult.reply || msg.text,
+            };
+
+            if (chatResult.selectedAction) {
+              if (chatResult.selectedAction.requiresApproval) {
+                updated.action = {
+                  type: 'approval',
+                  label: chatResult.selectedAction.title,
+                  status: 'pending',
+                  agentId: chatResult.selectedAction.agentId,
+                  actionId: chatResult.selectedAction.actionId,
+                };
+              } else {
+                updated.action = {
+                  type: 'navigation',
+                  label: `查看 ${chatResult.selectedAction.title} 结果`,
+                  view: inferViewByAgent(chatResult.selectedAction.agentId),
+                  agentId: chatResult.selectedAction.agentId,
+                  actionId: chatResult.selectedAction.actionId,
+                };
+              }
+            }
+
+            return updated;
+          }),
+        );
+      };
+
+      const flushTimer = window.setInterval(() => {
+        if (pendingChunks.length > 0) {
+          const nextChunk = pendingChunks.slice(0, 2);
+          pendingChunks = pendingChunks.slice(2);
+          appendStreamText(nextChunk);
+        }
+
+        if (streamEnded && pendingChunks.length === 0) {
+          window.clearInterval(flushTimer);
+          if (donePayload) {
+            applyDonePayload(donePayload);
+          }
+          setIsThinking(false);
+        }
+      }, 16);
+
       try {
         await assistantApi.chatStream(
           {
@@ -504,51 +576,20 @@ const OpsPilotHome = () => {
           },
           {
             onDelta: chunk => {
-              setMessages(prev =>
-                prev.map(msg =>
-                  msg.id === aiMessageId ? { ...msg, text: msg.text + chunk } : msg,
-                ),
-              );
+              pendingChunks += chunk;
+              if (!receivedDelta) {
+                receivedDelta = true;
+                setIsThinking(false);
+              }
             },
             onDone: chatResult => {
-              setMessages(prev =>
-                prev.map(msg => {
-                  if (msg.id !== aiMessageId) {
-                    return msg;
-                  }
-
-                  const updated: Message = {
-                    ...msg,
-                    text: chatResult.reply || msg.text,
-                  };
-
-                  if (chatResult.selectedAction) {
-                    if (chatResult.selectedAction.requiresApproval) {
-                      updated.action = {
-                        type: 'approval',
-                        label: chatResult.selectedAction.title,
-                        status: 'pending',
-                        agentId: chatResult.selectedAction.agentId,
-                        actionId: chatResult.selectedAction.actionId,
-                      };
-                    } else {
-                      updated.action = {
-                        type: 'navigation',
-                        label: `查看 ${chatResult.selectedAction.title} 结果`,
-                        view: inferViewByAgent(chatResult.selectedAction.agentId),
-                        agentId: chatResult.selectedAction.agentId,
-                        actionId: chatResult.selectedAction.actionId,
-                      };
-                    }
-                  }
-
-                  return updated;
-                }),
-              );
+              donePayload = chatResult;
+              streamEnded = true;
             },
           },
         );
       } catch (error) {
+        window.clearInterval(flushTimer);
         setMessages(prev =>
           prev.map(msg =>
             msg.id === aiMessageId
@@ -556,7 +597,15 @@ const OpsPilotHome = () => {
               : msg,
           ),
         );
+        setIsThinking(false);
       } finally {
+        streamEnded = true;
+        if (pendingChunks.length === 0) {
+          window.clearInterval(flushTimer);
+          if (donePayload) {
+            applyDonePayload(donePayload);
+          }
+        }
         setIsThinking(false);
       }
     })();

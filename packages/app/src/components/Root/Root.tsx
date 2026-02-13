@@ -121,8 +121,12 @@ const SidebarLayout = styled(Box, {
       // The height is controlled by the flexbox in the BackstageSidebarPage.
       height: `calc(100vh - ${aboveSidebarHeaderHeight! + aboveMainContentHeaderHeight!}px)`,
       flexGrow: 1,
-      marginLeft: '76px',
+      marginLeft: '76px !important',
+      width: 'calc(100vw - 76px) !important',
+      maxWidth: 'calc(100vw - 76px) !important',
       paddingLeft: 0,
+      overflowX: 'hidden',
+      boxSizing: 'border-box',
     },
 
     // When drawer is docked, adjust the content size

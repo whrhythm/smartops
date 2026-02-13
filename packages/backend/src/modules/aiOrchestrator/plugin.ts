@@ -13,6 +13,23 @@ export const aiOrchestratorBackend = createBackendPlugin({
         discovery: coreServices.discovery,
       },
       async init({ http, logger, config, discovery }) {
+        http.addAuthPolicy({
+          path: '/openapi.json',
+          allow: 'unauthenticated',
+        });
+        http.addAuthPolicy({
+          path: '/docs',
+          allow: 'unauthenticated',
+        });
+        http.addAuthPolicy({
+          path: '/doc',
+          allow: 'unauthenticated',
+        });
+        http.addAuthPolicy({
+          path: '/swagger-ui-init.js',
+          allow: 'unauthenticated',
+        });
+
         http.use(
           await createRouter({
             logger,

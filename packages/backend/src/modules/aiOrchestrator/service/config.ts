@@ -31,12 +31,18 @@ export type LlmConfig = {
   baseUrl: string;
   apiKey: string;
   model: string;
+  secretKey?: string;
+  apiMode?: 'chat-completions' | 'responses';
+  webSearchEnabled?: boolean;
+  webSearchMaxKeyword?: number;
 };
 
 export type AiAssistantConfig = {
   wecom?: WecomConfig;
   flowable?: FlowableConfig;
   llm?: LlmConfig;
+  promptCatalogPath?: string;
+  modelProfilesPath?: string;
   rag?: {
     tenantFilterKey?: string;
     maxResults?: number;
@@ -48,6 +54,30 @@ export type AiAssistantConfig = {
 
 export const readAiAssistantConfig = (config: Config): AiAssistantConfig => {
   const aiConfig = config.getConfig('aiAssistant');
+  const parseBoolean = (value: string | undefined): boolean | undefined => {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+
+    return undefined;
+  };
+
+  const parseNumber = (value: string | undefined): number | undefined => {
+    if (value === undefined || value.trim() === '') {
+      return undefined;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
   const users = aiConfig.getConfigArray('users').map(userConfig => ({
     phone: userConfig.getString('phone'),
     tenantId: userConfig.getString('tenantId'),
@@ -84,6 +114,18 @@ export const readAiAssistantConfig = (config: Config): AiAssistantConfig => {
         baseUrl: aiConfig.getString('llm.baseUrl'),
         apiKey: aiConfig.getString('llm.apiKey'),
         model: aiConfig.getString('llm.model'),
+        secretKey: aiConfig.getOptionalString('llm.secretKey') ?? undefined,
+        apiMode:
+          (aiConfig.getOptionalString('llm.apiMode') as
+            | 'chat-completions'
+            | 'responses'
+            | undefined) ?? undefined,
+        webSearchEnabled: parseBoolean(
+          aiConfig.getOptionalString('llm.webSearchEnabled') ?? undefined,
+        ),
+        webSearchMaxKeyword: parseNumber(
+          aiConfig.getOptionalString('llm.webSearchMaxKeyword') ?? undefined,
+        ),
       }
     : undefined;
 
@@ -102,6 +144,10 @@ export const readAiAssistantConfig = (config: Config): AiAssistantConfig => {
     wecom,
     flowable,
     llm,
+    promptCatalogPath:
+      aiConfig.getOptionalString('promptCatalogPath') ?? undefined,
+    modelProfilesPath:
+      aiConfig.getOptionalString('modelProfilesPath') ?? undefined,
     rag,
     users,
     mcpServers,
